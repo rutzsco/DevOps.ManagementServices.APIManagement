@@ -1,0 +1,50 @@
+trigger: none
+
+resources:
+  pipelines:
+  - pipeline: build
+    source: 'DevOps.ManagementServices.APIManagement - BUILD'
+  
+variables:
+  vmImageName: 'vs2017-win2016'
+  azureSubscription: 'Internal Demo Account (164a84cf-b099-4567-a527-c2a8143a32c7)'
+
+stages:
+ - stage: CI
+   displayName: CI stage 
+   variables:
+     app-name: 'devops-management-services-apim-ci'
+     storageAccountName: 'azfuncdomsapimci'
+     region: 'Central US'
+     resourceGroupName: 'devops-management-services-ci'  
+   jobs:
+   - deployment: Deploy
+     displayName: Deploy
+     environment: 'CI'
+     pool:
+        vmImage: $(vmImageName)   
+      
+     strategy:
+        runOnce:
+          deploy:
+  
+            steps:
+           
+            - task: AzureResourceGroupDeployment@2
+              displayName: '1. Create Function Infrastructure'
+              inputs:
+                azureSubscription: '$(azureSubscription)'
+                resourceGroupName: '$(resourceGroupName)'
+                location: '$(region)'
+                csmFile: '$(Pipeline.Workspace)/build/Infrastructure/function-app-consumption.json'
+                overrideParameters: '-appName $(app-name) -storageAccountName $(storageAccountName)'
+                deploymentOutputs: ResourceGroupDeploymentOutputs
+          
+            - task: AzureFunctionApp@1
+              displayName: '2. Azure functions app deploy'
+              inputs:
+                azureSubscription: '$(azureSubscription)'
+                appType: functionApp
+                appName: $(app-name)
+                package: '$(Pipeline.Workspace)/build/App/RemoteMonitor.Services.Insights.zip'
+                AppSettings: '-SourceServiceUrl $(SourceServiceUrl) -SourceServiceToken $(SourceServiceToken)'
